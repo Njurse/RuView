@@ -21,7 +21,7 @@ services:
     labels:
       ai-tool: "ruview"
     command:
-      - wifi-densepose-sensing-server
+      - /app/sensing-server
       - --allowed-host
       - 192.168.50.249
       - --allowed-host
