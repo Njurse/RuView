@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ruview:local
+    image: wifi-densepose:local
 
     environment:
       CSI_SOURCE: ${CSI_SOURCE:-auto}
