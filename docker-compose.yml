@@ -6,7 +6,7 @@ services:
     environment:
       CSI_SOURCE: ${CSI_SOURCE:-auto}
       MODELS_DIR: ${MODELS_DIR:-data/models}
-      SENSING_ALLOWED_HOSTS=Babou,gail,monolith,localhost
+      SENSING_ALLOWED_HOSTS: Babou,gail,monolith,localhost
     ports:
       - "3000:3000"
       - "3001:3001"
