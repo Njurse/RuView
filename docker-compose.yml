@@ -3,8 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: wifi-densepose:local
-
     environment:
       CSI_SOURCE: ${CSI_SOURCE:-auto}
       MODELS_DIR: ${MODELS_DIR:-data/models}
