@@ -22,4 +22,4 @@ services:
 
     restart: unless-stopped
     environment:
-      - SENSING_ALLOWED_HOSTS=*
+      - SENSING_ALLOWED_HOSTS=Babou,192.168.50.191,192.168.50.249
