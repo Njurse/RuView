@@ -1,27 +1,55 @@
-FROM node:20-slim
+FROM rust:1.89-bookworm AS builder
+
+WORKDIR /build
+
+COPY v2/Cargo.toml v2/Cargo.lock ./
+COPY v2/crates/ ./crates/
+COPY vendor/ruvector/ /build/vendor/ruvector/
+
+RUN cargo build --release -p wifi-densepose-sensing-server --features mqtt \
+ && cargo build --release -p cog-ha-matter \
+ && cargo build --release -p homecore-server \
+ && strip target/release/sensing-server target/release/cog-ha-matter target/release/homecore-server
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-  && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/target/release/sensing-server /app/sensing-server
+COPY --from=builder /build/target/release/cog-ha-matter /app/cog-ha-matter
+COPY --from=builder /build/target/release/homecore-server /app/homecore-server
 
-COPY . .
+COPY ui/ /app/ui/
 
-# Install dependencies if Node project
-RUN if [ -f package.json ]; then npm install; fi
+RUN set -e; \
+    for f in /app/ui/index.html /app/ui/observatory.html /app/ui/pose-fusion.html /app/ui/viz.html; do \
+        test -f "$f" || { echo "FATAL: missing UI asset $f"; exit 1; }; \
+    done; \
+    for d in /app/ui/observatory /app/ui/pose-fusion /app/ui/components /app/ui/services; do \
+        test -d "$d" || { echo "FATAL: missing UI directory $d"; exit 1; }; \
+    done; \
+    test -x /app/sensing-server || { echo "FATAL: /app/sensing-server is not executable"; exit 1; }; \
+    test -x /app/cog-ha-matter || { echo "FATAL: /app/cog-ha-matter is not executable"; exit 1; }; \
+    test -x /app/homecore-server || { echo "FATAL: /app/homecore-server is not executable"; exit 1; }; \
+    echo "image assets OK"
 
-EXPOSE 3000 3001 5005/udp
+ENV RUVIEW_API_TOKEN=
 
-ENV CONFIG_PATH=/app/config
-ENV DATA_PATH=/app/data
-ENV LOG_PATH=/app/logs
-ENV MODEL_PATH=/app/models
+EXPOSE 3000
+EXPOSE 3001
+EXPOSE 5005/udp
+EXPOSE 1883
+EXPOSE 8123
 
-RUN mkdir -p /app/config /app/data /app/logs /app/models
+ENV RUST_LOG=info
+ENV CSI_SOURCE=auto
+ENV MODELS_DIR=data/models
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -fs http://localhost:3000/health || exit 1
+COPY docker/docker-entrypoint.sh /app/docker-entrypoint.sh
 
-CMD ["npm", "start"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD []

@@ -1,10 +1,11 @@
-version: "3.9"
-
 services:
   ruview:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      CSI_SOURCE: ${CSI_SOURCE:-auto}
+      MODELS_DIR: ${MODELS_DIR:-data/models}
 
     ports:
       - "3000:3000"
