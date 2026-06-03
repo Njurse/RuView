@@ -19,5 +19,6 @@ services:
 
     labels:
       ai-tool: "ruview"
-
+    environment:
+      - SENSING_ALLOWED_HOSTS=Babou,192.168.50.191,gail,192.168.50.249,localhost,127.0.0.1
     restart: unless-stopped
