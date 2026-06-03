@@ -21,7 +21,8 @@ services:
     labels:
       ai-tool: "ruview"
     # Keep command as flags-only so docker-entrypoint.sh injects container-side
-    # defaults: --http-port 3000 / --ws-port 3001 / --bind-addr 0.0.0.0.
+    # defaults: --http-port 3000 / --ws-port 3001 / --bind-addr 0.0.0.0
+    # (mapped above to host ports 3001/3002 respectively).
     command:
       - --allowed-host
       - 192.168.50.249
