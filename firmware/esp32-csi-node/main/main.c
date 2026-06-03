@@ -85,7 +85,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 static void wifi_init_sta(void)
 {
     s_wifi_event_group = xEventGroupCreate();
-
+    ESP_LOGI(TAG, "Beginning wifi_init_sta() for process of connecting to SSID: %s", g_nvs_config.wifi_ssid);
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
@@ -147,6 +147,7 @@ static void wifi_init_sta(void)
 void app_main(void)
 {
     /* Initialize NVS */
+    ESP_LOGI(TAG, "Initializing NVS flash");
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -161,7 +162,7 @@ void app_main(void)
      * g_nvs_config. See #232/#375/#390: WiFi driver init clobbers the struct
      * on some devices, reverting node_id to the Kconfig default of 1. */
     csi_collector_set_node_id(g_nvs_config.node_id);
-
+    ESP_LOGI(TAG, "Node ID set to %d (from NVS config)", g_nvs_config.node_id);
     const esp_app_desc_t *app_desc = esp_app_get_description();
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
     const char *target_name = "ESP32-C6";
