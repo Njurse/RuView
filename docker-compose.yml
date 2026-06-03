@@ -3,13 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      CSI_SOURCE: ${CSI_SOURCE:-auto}
-      MODELS_DIR: ${MODELS_DIR:-data/models}
-      SENSING_ALLOWED_HOSTS: Babou,gail,monolith,localhost
+
     ports:
-      - "3001:3000"
-      - "3002:3001"
+      - "3000:3000"
+      - "3001:3001"
       - "5005:5005/udp"
 
     volumes:
@@ -20,6 +17,7 @@ services:
 
     labels:
       ai-tool: "ruview"
+
     command:
       - /app/sensing-server
       - --http-port
@@ -29,9 +27,10 @@ services:
       - --allowed-host
       - 192.168.50.249
       - --allowed-host
-      - 192.168.50.191      
+      - 192.168.50.191
       - --allowed-host
       - localhost
       - --allowed-host
       - 127.0.0.1
+
     restart: unless-stopped
