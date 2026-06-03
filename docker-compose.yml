@@ -8,8 +8,8 @@ services:
       MODELS_DIR: ${MODELS_DIR:-data/models}
       SENSING_ALLOWED_HOSTS: Babou,gail,monolith,localhost
     ports:
-      - "3000:3000"
-      - "3001:3001"
+      - "3001:3000"
+      - "3002:3001"
       - "5005:5005/udp"
 
     volumes:
