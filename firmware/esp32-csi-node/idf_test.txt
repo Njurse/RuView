@@ -1,0 +1,10 @@
+[INFO] Starting ESP-IDF firmware build 
+[INFO] Script directory: C:\Users\Jaret\Documents\Projects\RuView\firmware\esp32-csi-node\ 
+[INFO] Project directory: C:\Users\Jaret\Documents\Projects\RuView\firmware\esp32-csi-node\ 
+[INFO] ESP-IDF root: C:\Users\Jaret\Documents\Projects\esp-idf-v6.0.1 
+[INFO] Running: python "C:\Users\Jaret\Documents\Projects\esp-idf-v6.0.1\tools\idf.py" build 
+No module named 'esp_idf_monitor'
+This usually means that "idf.py" was not spawned within an ESP-IDF shell environment or the python virtual environment used by "idf.py" is corrupted.
+Please use idf.py only in an ESP-IDF shell environment. If problem persists, please try to install ESP-IDF tools again as described in the Get Started guide.
+[ERROR] Build failed with exit code 1. 
+[HINT] Open idf_test.txt for full output and fix the first reported error. 

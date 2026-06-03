@@ -24,12 +24,12 @@ services:
       - "3000"
       - --ws-port
       - "3001"
+      - --udp-port
+      - "5005"
       - --bind-addr
       - 0.0.0.0
-      - --disable-host-validation
-      - --ui-path
-      - /app/ui
       - --source
       - esp32
+      - --disable-host-validation
 
     restart: unless-stopped
