@@ -1,20 +1,20 @@
 #!/bin/bash
 
 # WiFi DensePose UI Startup Script
-# This script starts the UI on port 3000 to avoid conflicts with the FastAPI backend on port 8000
+# This script starts the UI on port 3001 to avoid conflicts with the FastAPI backend on port 8000
 
 echo "🚀 Starting WiFi DensePose UI..."
 echo ""
 echo "📋 Configuration:"
-echo "   - UI Server: http://localhost:3000"
+echo "   - UI Server: http://localhost:3001"
 echo "   - Backend API: http://localhost:8000 (make sure it's running)"
-echo "   - Test Runner: http://localhost:3000/tests/test-runner.html"
-echo "   - Integration Tests: http://localhost:3000/tests/integration-test.html"
+echo "   - Test Runner: http://localhost:3001/tests/test-runner.html"
+echo "   - Integration Tests: http://localhost:3001/tests/integration-test.html"
 echo ""
 
-# Check if port 3000 is already in use
-if lsof -Pi :3000 -sTCP:LISTEN -t >/dev/null ; then
-    echo "⚠️  Port 3000 is already in use. Please stop the existing server or use a different port."
+# Check if port 3001 is already in use
+if lsof -Pi :3001 -sTCP:LISTEN -t >/dev/null ; then
+    echo "⚠️  Port 3001 is already in use. Please stop the existing server or use a different port."
     echo "   You can manually start with: python -m http.server 3001"
     exit 1
 fi
@@ -31,9 +31,9 @@ else
 fi
 
 echo ""
-echo "🌐 Starting HTTP server on port 3000..."
+echo "🌐 Starting HTTP server on port 3001..."
 echo "   Press Ctrl+C to stop"
 echo ""
 
 # Start the HTTP server
-python -m http.server 3000
+python -m http.server 3001

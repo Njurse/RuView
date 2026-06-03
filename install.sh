@@ -966,8 +966,8 @@ post_install() {
             echo "    # v2/crates/wifi-densepose-wasm/pkg/"
             echo ""
             echo "    # Open the 3D visualization:"
-            echo "    python3 -m http.server 3000 --directory ui"
-            echo "    # Then open: http://localhost:3000/viz.html"
+            echo "    python3 -m http.server 3001 --directory ui"
+            echo "    # Then open: http://localhost:3001/viz.html"
             ;;
         iot)
             echo "    # 1. Configure WiFi credentials:"
@@ -1010,7 +1010,7 @@ post_install() {
             echo "    # Python API:    uvicorn v1.src.api.main:app --host 0.0.0.0 --port 8000"
             echo "    # Rust API:      cd v2 && cargo run --release --package wifi-densepose-api"
             echo "    # Benchmarks:    cd v2 && cargo bench"
-            echo "    # Visualization: python3 -m http.server 3000 --directory ui"
+            echo "    # Visualization: python3 -m http.server 3001 --directory ui"
             echo "    # Docker:        docker compose up"
             ;;
     esac
