@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  ruview:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "5005:5005/udp"
+
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+
+    labels:
+      ai-tool: "ruview"
+
+    restart: unless-stopped
