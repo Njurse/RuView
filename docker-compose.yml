@@ -30,6 +30,6 @@ services:
       - --ui-path
       - /app/ui
       - --source
-      - wifi
+      - auto
 
     restart: unless-stopped
