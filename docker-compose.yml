@@ -24,13 +24,7 @@ services:
       - "3000"
       - --ws-port
       - "3001"
-      - --allowed-host
-      - 192.168.50.249
-      - --allowed-host
-      - 192.168.50.191
-      - --allowed-host
-      - localhost
-      - --allowed-host
-      - 127.0.0.1
+      - --bind-addr
+      - 0.0.0.0
 
     restart: unless-stopped
