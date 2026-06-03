@@ -26,5 +26,9 @@ services:
       - "3001"
       - --bind-addr
       - 0.0.0.0
+      - --ui-path
+      - /app/ui
+      - --source
+      - auto
 
     restart: unless-stopped
