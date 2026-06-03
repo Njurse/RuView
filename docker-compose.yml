@@ -21,3 +21,5 @@ services:
       ai-tool: "ruview"
 
     restart: unless-stopped
+    environment:
+      - SENSING_ALLOWED_HOSTS=*
