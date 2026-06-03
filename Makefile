@@ -73,7 +73,7 @@ run-api-dev:
 	uvicorn v1.src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 run-viz:
-	python3 -m http.server 3000 --directory ui
+	python3 -m http.server 3001 --directory ui
 
 run-docker:
 	docker compose up
@@ -114,7 +114,7 @@ help:
 	@echo "  Run:"
 	@echo "    make run-api          Start Python API server"
 	@echo "    make run-api-dev      Start API with hot-reload"
-	@echo "    make run-viz          Serve 3D visualization (port 3000)"
+	@echo "    make run-viz          Serve 3D visualization (port 3001)"
 	@echo "    make run-docker       Start Docker dev stack"
 	@echo ""
 	@echo "  Utility:"
