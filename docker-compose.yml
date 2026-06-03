@@ -21,6 +21,7 @@ services:
     labels:
       ai-tool: "ruview"
     command:
+      - /app/sensing-server
       - --allowed-host
       - 192.168.50.249
       - --allowed-host
