@@ -6,7 +6,7 @@ services:
     environment:
       CSI_SOURCE: ${CSI_SOURCE:-auto}
       MODELS_DIR: ${MODELS_DIR:-data/models}
-
+      SENSING_ALLOWED_HOSTS=Babou,gail,monolith,localhost
     ports:
       - "3000:3000"
       - "3001:3001"
@@ -20,12 +20,12 @@ services:
 
     labels:
       ai-tool: "ruview"
-    environment:
-      - SENSING_ALLOWED_HOSTS=Babou,192.168.50.191,gail,192.168.50.249,localhost,127.0.0.1
     command:
       - wifi-densepose-sensing-server
       - --allowed-host
       - 192.168.50.249
+      - --allowed-host
+      - 192.168.50.191      
       - --allowed-host
       - localhost
       - --allowed-host
