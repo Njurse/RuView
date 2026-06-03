@@ -4,15 +4,10 @@ services:
       context: .
       dockerfile: Dockerfile
 
-    network_mode: host
-
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-
-    environment:
-      - SENSING_WIFI_IFACE=${SENSING_WIFI_IFACE:-wlan0}
-      - SENSING_WIFI_USE_DUMP=${SENSING_WIFI_USE_DUMP:-false}
+    ports:
+      - "3001:3000"
+      - "3002:3001"
+      - "5005:5005/udp"
 
     volumes:
       - ./config:/app/config
@@ -26,9 +21,9 @@ services:
     command:
       - /app/sensing-server
       - --http-port
-      - "3001"
+      - "3000"
       - --ws-port
-      - "3002"
+      - "3001"
       - --bind-addr
       - 0.0.0.0
       - --disable-host-validation
