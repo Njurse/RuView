@@ -6,9 +6,9 @@ COPY v2/Cargo.toml v2/Cargo.lock ./
 COPY v2/crates/ ./crates/
 COPY vendor/ruvector/ /build/vendor/ruvector/
 
-RUN cargo build --release -p wifi-densepose-sensing-server --features mqtt 2>&1 \
- && cargo build --release -p cog-ha-matter 2>&1 \
- && cargo build --release -p homecore-server 2>&1 \
+RUN cargo build --release -p wifi-densepose-sensing-server --features mqtt \
+ && cargo build --release -p cog-ha-matter \
+ && cargo build --release -p homecore-server \
  && strip target/release/sensing-server target/release/cog-ha-matter target/release/homecore-server
 
 FROM debian:bookworm-slim
