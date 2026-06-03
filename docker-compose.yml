@@ -8,8 +8,8 @@ services:
       MODELS_DIR: ${MODELS_DIR:-data/models}
       SENSING_ALLOWED_HOSTS: Babou,gail,monolith,localhost
     ports:
-      - "3000:3000"
-      - "3001:3001"
+      - "3001:3000"
+      - "3002:3001"
       - "5005:5005/udp"
 
     volumes:
@@ -22,6 +22,10 @@ services:
       ai-tool: "ruview"
     command:
       - /app/sensing-server
+      - --http-port
+      - "3000"
+      - --ws-port
+      - "3001"
       - --allowed-host
       - 192.168.50.249
       - --allowed-host
