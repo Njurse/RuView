@@ -58,6 +58,8 @@ use vital_signs::{VitalSignDetector, VitalSigns};
 // ADR-022 Phase 3: Multi-BSSID pipeline integration
 use wifi_densepose_wifiscan::parse_netsh_output as parse_netsh_bssid_output;
 use wifi_densepose_wifiscan::{BssidRegistry, WindowsWifiPipeline};
+#[cfg(target_os = "linux")]
+use wifi_densepose_wifiscan::LinuxIwScanner;
 
 // Accuracy sprint: Kalman tracker, multistatic fusion, field model
 use wifi_densepose_signal::ruvsense::field_model::{CalibrationStatus, FieldModel};
@@ -2413,6 +2415,210 @@ async fn windows_wifi_fallback_tick(state: &SharedState, seq: u32) {
     s.latest_update = Some(update);
 }
 
+#[cfg(target_os = "linux")]
+async fn linux_wifi_task(state: SharedState, tick_ms: u64) {
+    let mut interval = tokio::time::interval(Duration::from_millis(tick_ms));
+    let mut seq: u32 = 0;
+
+    let iface = std::env::var("SENSING_WIFI_IFACE").unwrap_or_else(|_| "wlan0".to_string());
+    let use_dump = std::env::var("SENSING_WIFI_USE_DUMP")
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false);
+
+    let mut registry = BssidRegistry::new(32, 30);
+    let mut pipeline = WindowsWifiPipeline::new();
+
+    info!(
+        "Linux WiFi multi-BSSID pipeline active (iface={}, tick={}ms, cached_scan={})",
+        iface, tick_ms, use_dump
+    );
+
+    loop {
+        interval.tick().await;
+        seq = seq.wrapping_add(1);
+
+        let iface_scan = iface.clone();
+        let bssid_scan_result = tokio::task::spawn_blocking(move || {
+            let scanner = if use_dump {
+                LinuxIwScanner::with_interface(iface_scan).use_cached()
+            } else {
+                LinuxIwScanner::with_interface(iface_scan)
+            };
+            scanner
+                .scan_sync()
+                .map_err(|e| format!("linux iw scan failed: {e}"))
+        })
+        .await;
+
+        let observations = match bssid_scan_result {
+            Ok(Ok(obs)) if !obs.is_empty() => obs,
+            Ok(Ok(_)) => {
+                debug!("Linux WiFi scan returned 0 observations");
+                continue;
+            }
+            Ok(Err(e)) => {
+                warn!("Linux WiFi scan error: {e}");
+                continue;
+            }
+            Err(join_err) => {
+                error!("Linux WiFi scan task join error: {join_err}");
+                continue;
+            }
+        };
+
+        let obs_count = observations.len();
+        let ssid = observations
+            .first()
+            .map(|o| o.ssid.clone())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "Unknown".into());
+
+        registry.update(&observations);
+        let multi_ap_frame = registry.to_multi_ap_frame();
+        let enhanced = pipeline.process(&multi_ap_frame);
+
+        let first_rssi = observations.first().map(|o| o.rssi_dbm).unwrap_or(-80.0);
+
+        let frame = Esp32Frame {
+            magic: 0xC511_0001,
+            node_id: 0,
+            n_antennas: 1,
+            n_subcarriers: obs_count.min(255) as u8,
+            freq_mhz: 2437,
+            sequence: seq,
+            rssi: first_rssi.clamp(-128.0, 127.0) as i8,
+            noise_floor: -90,
+            amplitudes: multi_ap_frame.amplitudes.clone(),
+            phases: multi_ap_frame.phases.clone(),
+        };
+
+        let mut s_write_pre = state.write().await;
+        s_write_pre.frame_history.push_back(frame.amplitudes.clone());
+        if s_write_pre.frame_history.len() > FRAME_HISTORY_CAPACITY {
+            s_write_pre.frame_history.pop_front();
+        }
+        let sample_rate_hz = 1000.0 / tick_ms as f64;
+        let (features, mut classification, breathing_rate_hz, sub_variances, raw_motion) =
+            extract_features_from_frame(&frame, &s_write_pre.frame_history, sample_rate_hz);
+        smooth_and_classify(&mut s_write_pre, &mut classification, raw_motion);
+        adaptive_override(&s_write_pre, &features, &mut classification);
+        drop(s_write_pre);
+
+        let enhanced_motion = Some(serde_json::json!({
+            "score": enhanced.motion.score,
+            "level": format!("{:?}", enhanced.motion.level),
+            "contributing_bssids": enhanced.motion.contributing_bssids,
+        }));
+
+        let enhanced_breathing = enhanced.breathing.as_ref().map(|b| {
+            serde_json::json!({
+                "rate_bpm": b.rate_bpm,
+                "confidence": b.confidence,
+                "bssid_count": b.bssid_count,
+            })
+        });
+
+        let posture_str = enhanced.posture.map(|p| format!("{p:?}"));
+        let sig_quality_score = Some(enhanced.signal_quality.score);
+        let verdict_str = Some(format!("{:?}", enhanced.verdict));
+        let bssid_n = Some(enhanced.bssid_count);
+
+        let mut s = state.write().await;
+        s.source = format!("wifi:{ssid}");
+        s.rssi_history.push_back(first_rssi);
+        if s.rssi_history.len() > 60 {
+            s.rssi_history.pop_front();
+        }
+
+        s.tick += 1;
+        let tick = s.tick;
+
+        let motion_score = if classification.motion_level == "active" {
+            0.8
+        } else if classification.motion_level == "present_still" {
+            0.3
+        } else {
+            0.05
+        };
+
+        let raw_vitals = s
+            .vital_detector
+            .process_frame(&frame.amplitudes, &frame.phases);
+        let vitals = smooth_vitals(&mut s, &raw_vitals);
+        s.latest_vitals = vitals.clone();
+
+        let feat_variance = features.variance;
+        s.p95_variance.push(features.variance);
+        s.p95_motion_band_power.push(features.motion_band_power);
+        s.p95_spectral_power.push(features.spectral_power);
+
+        let raw_score = compute_person_score(&s, &features);
+        s.smoothed_person_score = s.smoothed_person_score * 0.90 + raw_score * 0.10;
+        let est_persons = if classification.presence {
+            let count = s.person_count();
+            s.prev_person_count = count;
+            count
+        } else {
+            s.prev_person_count = 0;
+            0
+        };
+
+        let mut update = SensingUpdate {
+            msg_type: "sensing_update".to_string(),
+            timestamp: chrono::Utc::now().timestamp_millis() as f64 / 1000.0,
+            source: format!("wifi:{ssid}"),
+            tick,
+            nodes: vec![NodeInfo {
+                node_id: 0,
+                rssi_dbm: first_rssi,
+                position: [0.0, 0.0, 0.0],
+                amplitude: multi_ap_frame.amplitudes,
+                subcarrier_count: obs_count,
+                sync: None,
+            }],
+            features,
+            classification,
+            signal_field: generate_signal_field(
+                first_rssi,
+                motion_score,
+                breathing_rate_hz,
+                feat_variance.min(1.0),
+                &sub_variances,
+            ),
+            vital_signs: Some(vitals),
+            enhanced_motion,
+            enhanced_breathing,
+            posture: posture_str,
+            signal_quality_score: sig_quality_score,
+            quality_verdict: verdict_str,
+            bssid_count: bssid_n,
+            pose_keypoints: None,
+            model_status: None,
+            persons: None,
+            estimated_persons: if est_persons > 0 {
+                Some(est_persons)
+            } else {
+                None
+            },
+            node_features: None,
+        };
+
+        let raw_persons = derive_pose_from_sensing(&update);
+        let mut last_tracker_instant = s.last_tracker_instant.take();
+        let tracked =
+            tracker_bridge::tracker_update(&mut s.pose_tracker, &mut last_tracker_instant, raw_persons);
+        s.last_tracker_instant = last_tracker_instant;
+        if !tracked.is_empty() {
+            update.persons = Some(tracked);
+        }
+
+        if let Ok(json) = serde_json::to_string(&update) {
+            let _ = s.tx.send(json);
+        }
+        s.latest_update = Some(update);
+    }
+}
+
 /// Probe if Windows WiFi is connected
 async fn probe_windows_wifi() -> bool {
     match tokio::process::Command::new("netsh")
@@ -2426,6 +2632,30 @@ async fn probe_windows_wifi() -> bool {
         }
         Err(_) => false,
     }
+}
+
+#[cfg(target_os = "linux")]
+async fn probe_linux_wifi() -> bool {
+    let iface = std::env::var("SENSING_WIFI_IFACE").unwrap_or_else(|_| "wlan0".to_string());
+    let use_dump = std::env::var("SENSING_WIFI_USE_DUMP")
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false);
+
+    tokio::task::spawn_blocking(move || {
+        let scanner = if use_dump {
+            LinuxIwScanner::with_interface(iface).use_cached()
+        } else {
+            LinuxIwScanner::with_interface(iface)
+        };
+        scanner.scan_sync().map(|v| !v.is_empty()).unwrap_or(false)
+    })
+    .await
+    .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn probe_linux_wifi() -> bool {
+    false
 }
 
 /// Probe if ESP32 is streaming on UDP port
@@ -6176,8 +6406,8 @@ async fn main() {
             if probe_esp32(args.udp_port).await {
                 info!("  ESP32 CSI detected on UDP :{}", args.udp_port);
                 "esp32"
-            } else if probe_windows_wifi().await {
-                info!("  Windows WiFi detected");
+            } else if probe_windows_wifi().await || probe_linux_wifi().await {
+                info!("  Host WiFi adapter detected");
                 "wifi"
             } else {
                 info!("  No hardware detected, using simulation");
@@ -6468,7 +6698,17 @@ async fn main() {
             tokio::spawn(broadcast_tick_task(state.clone(), args.tick_ms));
         }
         "wifi" => {
+            #[cfg(target_os = "windows")]
             tokio::spawn(windows_wifi_task(state.clone(), args.tick_ms));
+
+            #[cfg(target_os = "linux")]
+            tokio::spawn(linux_wifi_task(state.clone(), args.tick_ms));
+
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+            {
+                warn!("wifi source is not supported on this platform; falling back to simulation");
+                tokio::spawn(simulated_data_task(state.clone(), args.tick_ms));
+            }
         }
         _ => {
             tokio::spawn(simulated_data_task(state.clone(), args.tick_ms));
