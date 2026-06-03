@@ -11,8 +11,8 @@ services:
       - NET_RAW
 
     environment:
-      - SENSING_WIFI_IFACE=${SENSING_WIFI_IFACE:-}
-      - SENSING_WIFI_USE_DUMP=${SENSING_WIFI_USE_DUMP:-true}
+      - SENSING_WIFI_IFACE=${SENSING_WIFI_IFACE:-wlan0}
+      - SENSING_WIFI_USE_DUMP=${SENSING_WIFI_USE_DUMP:-false}
 
     volumes:
       - ./config:/app/config
