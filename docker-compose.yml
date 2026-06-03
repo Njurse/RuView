@@ -30,6 +30,6 @@ services:
       - --ui-path
       - /app/ui
       - --source
-      - auto
+      - esp32
 
     restart: unless-stopped
