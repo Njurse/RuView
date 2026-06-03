@@ -2420,7 +2420,7 @@ async fn linux_wifi_task(state: SharedState, tick_ms: u64) {
     let mut interval = tokio::time::interval(Duration::from_millis(tick_ms));
     let mut seq: u32 = 0;
 
-    let iface = std::env::var("SENSING_WIFI_IFACE").unwrap_or_else(|_| "wlan0".to_string());
+    let iface = resolve_linux_wifi_iface();
     let use_dump = std::env::var("SENSING_WIFI_USE_DUMP")
         .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
         .unwrap_or(false);
@@ -2439,14 +2439,24 @@ async fn linux_wifi_task(state: SharedState, tick_ms: u64) {
 
         let iface_scan = iface.clone();
         let bssid_scan_result = tokio::task::spawn_blocking(move || {
-            let scanner = if use_dump {
-                LinuxIwScanner::with_interface(iface_scan).use_cached()
-            } else {
-                LinuxIwScanner::with_interface(iface_scan)
-            };
-            scanner
-                .scan_sync()
-                .map_err(|e| format!("linux iw scan failed: {e}"))
+            if use_dump {
+                return LinuxIwScanner::with_interface(iface_scan)
+                    .use_cached()
+                    .scan_sync()
+                    .map_err(|e| format!("linux iw scan failed (cached): {e}"));
+            }
+
+            match LinuxIwScanner::with_interface(iface_scan.clone()).scan_sync() {
+                Ok(v) => Ok(v),
+                Err(active_err) => LinuxIwScanner::with_interface(iface_scan)
+                    .use_cached()
+                    .scan_sync()
+                    .map_err(|cached_err| {
+                        format!(
+                            "linux iw scan failed (active): {active_err}; fallback cached scan failed: {cached_err}"
+                        )
+                    }),
+            }
         })
         .await;
 
@@ -2636,21 +2646,55 @@ async fn probe_windows_wifi() -> bool {
 
 #[cfg(target_os = "linux")]
 async fn probe_linux_wifi() -> bool {
-    let iface = std::env::var("SENSING_WIFI_IFACE").unwrap_or_else(|_| "wlan0".to_string());
+    let iface = resolve_linux_wifi_iface();
     let use_dump = std::env::var("SENSING_WIFI_USE_DUMP")
         .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
         .unwrap_or(false);
 
     tokio::task::spawn_blocking(move || {
-        let scanner = if use_dump {
-            LinuxIwScanner::with_interface(iface).use_cached()
-        } else {
-            LinuxIwScanner::with_interface(iface)
-        };
-        scanner.scan_sync().map(|v| !v.is_empty()).unwrap_or(false)
+        if use_dump {
+            return LinuxIwScanner::with_interface(iface)
+                .use_cached()
+                .scan_sync()
+                .map(|v| !v.is_empty())
+                .unwrap_or(false);
+        }
+
+        LinuxIwScanner::with_interface(iface.clone())
+            .scan_sync()
+            .or_else(|_| LinuxIwScanner::with_interface(iface).use_cached().scan_sync())
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
     })
     .await
     .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_linux_wifi_iface() -> String {
+    if let Ok(v) = std::env::var("SENSING_WIFI_IFACE") {
+        let trimmed = v.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+
+    if let Ok(output) = std::process::Command::new("iw").arg("dev").output() {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                let trimmed = line.trim();
+                if let Some(rest) = trimmed.strip_prefix("Interface ") {
+                    let iface = rest.trim();
+                    if !iface.is_empty() {
+                        return iface.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    "wlan0".to_string()
 }
 
 #[cfg(not(target_os = "linux"))]
